@@ -22,3 +22,9 @@ venv/
 
 # Logs
 *.log
+
+# Reference project book of other students (contains personal details)
+*skillgrid*.docx
+
+# Word lock files
+~$*.docx
