@@ -322,7 +322,7 @@ def component_appointments():
     b = class_box(d, "Appointments Manager", ["- appointmentsDB: AppointmentsDB", "- providersDB: ServiceProvidersDB"],
                   ["+ getAvailableSlots(barberId, date)", "+ BookAppointment(clientId, barberId, date, time)",
                    "+ changeAppointment(apptId, date, time)", "+ cancelAppointment(apptId)",
-                   "+ getClientAppointments(clientId)"], 230, 250, 300)
+                   "+ getClientAppointments(clientId)", "- calcFreeSlots(schedule, bookedList)"], 230, 250, 300)
     c = class_box(d, "Service Providers DB", ["- barbers: Collection&lt;Barber&gt;"],
                   ["+ getBarbers()", "+ getWorkSchedule(barberId)"], 20, 540, 230)
     e = class_box(d, "Appointments DB", ["- appointments: Collection&lt;Appointment&gt;"],
