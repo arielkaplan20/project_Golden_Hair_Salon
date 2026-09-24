@@ -28,3 +28,6 @@ venv/
 
 # Word lock files
 ~$*.docx
+
+# College proposal template (contains the mentor's personal details)
+הצעות פרויקט ריק.docx
