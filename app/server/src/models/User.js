@@ -8,7 +8,9 @@ const userSchema = new mongoose.Schema({
   passwordHash: { type: String, required: true },   // הסיסמה נשמרת מוצפנת בלבד
   address: { type: String, required: true },
   birthDate: { type: Date, required: true },
-  role: { type: String, enum: ["client", "barber", "admin"], default: "client" }
+  role: { type: String, enum: ["client", "barber", "admin"], default: "client" },
+  resetToken: { type: String, default: "" },          // טוקן חד-פעמי לשחזור סיסמה
+  resetTokenExpires: { type: Date, default: null }    // מועד פקיעת הטוקן
 }, { timestamps: true });
 
 module.exports = mongoose.model("User", userSchema);

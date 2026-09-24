@@ -1,7 +1,9 @@
 // רכיב Users Manager - הרשמה והתחברות (SUC-1, SUC-2)
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const User = require("../models/User");
+const { sendPasswordReset } = require("../utils/mailer");
 
 // יוצר טוקן שמכיל את מזהה המשתמש ואת ההרשאה שלו
 function createToken(user) {
@@ -107,4 +109,55 @@ async function updateProfile(req, res) {
   }
 }
 
-module.exports = { register, login, me, updateProfile };
+// סעיף 6.1.2: המשתמש שוכח את הסיסמה - שליחת קישור לשחזור
+async function forgotPassword(req, res) {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "יש להזין כתובת דוא\"ל" });
+
+    const user = await User.findOne({ email });
+    if (user) {
+      // טוקן אקראי שנשמר במסד הנתונים ותקף לשעה אחת בלבד
+      user.resetToken = crypto.randomBytes(32).toString("hex");
+      user.resetTokenExpires = new Date(Date.now() + 60 * 60 * 1000);
+      await user.save();
+
+      const site = process.env.CLIENT_URL || "http://localhost:3000";
+      await sendPasswordReset(user, site + "/reset-password/" + user.resetToken);
+    }
+
+    // אותה תשובה גם אם הדוא"ל אינו קיים, כדי לא לחשוף מי רשום במערכת
+    res.json({ message: "אם הכתובת קיימת במערכת, נשלח אליה קישור לשחזור הסיסמה" });
+  } catch (err) {
+    res.status(500).json({ message: "שגיאה בשרת", error: err.message });
+  }
+}
+
+// בחירת סיסמה חדשה באמצעות הטוקן מהמייל
+async function resetPassword(req, res) {
+  try {
+    const { token, password, confirmPassword } = req.body;
+    if (!token || !password || !confirmPassword) {
+      return res.status(400).json({ message: "יש למלא את כל השדות" });
+    }
+    if (password !== confirmPassword) {
+      return res.status(400).json({ message: "הסיסמאות אינן תואמות" });
+    }
+
+    const user = await User.findOne({ resetToken: token, resetTokenExpires: { $gt: new Date() } });
+    if (!user) {
+      return res.status(400).json({ message: "הקישור אינו תקין או שפג תוקפו, יש לבקש קישור חדש" });
+    }
+
+    user.passwordHash = await bcrypt.hash(password, 10);
+    user.resetToken = "";                 // הטוקן חד-פעמי ונמחק אחרי השימוש
+    user.resetTokenExpires = null;
+    await user.save();
+
+    res.json({ message: "הסיסמה שונתה בהצלחה, אפשר להתחבר עם הסיסמה החדשה" });
+  } catch (err) {
+    res.status(500).json({ message: "שגיאה בשרת", error: err.message });
+  }
+}
+
+module.exports = { register, login, me, updateProfile, forgotPassword, resetPassword };

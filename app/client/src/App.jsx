@@ -17,6 +17,8 @@ import ManageAppointments from "./pages/ManageAppointments";
 import ManageShop from "./pages/ManageShop";
 import MyOrders from "./pages/MyOrders";
 import ProductPage from "./pages/ProductPage";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import { getUser } from "./auth";
 
 // דף שמוגן: אם אין משתמש מחובר, חוזרים לדף הכניסה
@@ -29,6 +31,8 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password/:token" element={<ResetPassword />} />
       <Route path="/" element={<Protected><Home /></Protected>} />
       <Route path="/book" element={<Protected><BookAppointment /></Protected>} />
       <Route path="/my" element={<Protected><MyAppointments /></Protected>} />

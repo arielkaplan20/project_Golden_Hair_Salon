@@ -3,6 +3,7 @@ const Appointment = require("../models/Appointment");
 const ServiceProvider = require("../models/ServiceProvider");
 const User = require("../models/User");
 const { todayString, dayOfWeek } = require("../utils/dates");
+const { sendAppointmentConfirmation } = require("../utils/mailer");
 
 // הופך "09:30" למספר דקות מתחילת היום, וההפך
 function toMinutes(t) {
@@ -75,7 +76,17 @@ async function bookAppointment(req, res) {
     }
 
     await Appointment.create({ clientId: req.user.id, barberId, date, time });
-    res.status(201).json({ message: "התור נקבע בהצלחה" });
+
+    // צעד 5: שליחת הודעת אישור ללקוח לכתובת הדוא"ל שאיתה נרשם
+    const client = await User.findById(req.user.id);
+    const provider = await ServiceProvider.findById(barberId).populate("userId", "firstName lastName");
+    const barberName = provider && provider.userId
+      ? provider.userId.firstName + " " + provider.userId.lastName : "הספר";
+    const mailed = await sendAppointmentConfirmation(client, barberName, date, time);
+
+    res.status(201).json({
+      message: mailed ? "התור נקבע בהצלחה, אישור נשלח לדוא\"ל שלך" : "התור נקבע בהצלחה"
+    });
   } catch (err) {
     res.status(500).json({ message: "שגיאה בשרת", error: err.message });
   }

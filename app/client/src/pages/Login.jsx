@@ -45,6 +45,9 @@ export default function Login() {
         <p className="text-center mt-4">
           אין לך חשבון? <Link to="/register" className="text-blue-600 underline">להרשמה</Link>
         </p>
+        <p className="text-center mt-2">
+          <Link to="/forgot-password" className="text-blue-600 underline">שכחתי סיסמה</Link>
+        </p>
       </form>
     </div>
   );
