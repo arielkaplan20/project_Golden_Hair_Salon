@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import { todayString } from "../dates";
+import DateInput from "../components/DateInput";
 
 const DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
@@ -164,8 +165,7 @@ export default function WorkHours() {
         </p>
 
         <label className="block mb-1">תאריך</label>
-        <input type="date" value={exDate} min={todayString()} onChange={(e) => setExDate(e.target.value)}
-               className="w-full border rounded p-2 mb-3" />
+        <DateInput value={exDate} min={todayString()} onChange={(e) => setExDate(e.target.value)} className="mb-3" />
 
         <label className="block mb-2">
           <input type="radio" checked={exOff} onChange={() => setExOff(true)} className="ml-2" />

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../api";
+import DateInput from "../components/DateInput";
 
 export default function Register() {
   const [form, setForm] = useState({
@@ -50,8 +51,12 @@ export default function Register() {
         {fields.map((f) => (
           <div key={f.name}>
             <label className="block mb-1">{f.label}</label>
-            <input type={f.type} name={f.name} value={form[f.name]} onChange={handleChange}
-                   className="w-full border rounded p-2 mb-3" />
+            {f.type === "date" ? (
+              <DateInput name={f.name} value={form[f.name]} onChange={handleChange} className="mb-3" />
+            ) : (
+              <input type={f.type} name={f.name} value={form[f.name]} onChange={handleChange}
+                     className="w-full border rounded p-2 mb-3" />
+            )}
           </div>
         ))}
 

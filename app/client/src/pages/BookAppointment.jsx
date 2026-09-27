@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import { todayString } from "../dates";
+import DateInput from "../components/DateInput";
 
 export default function BookAppointment() {
   const [barbers, setBarbers] = useState([]);
@@ -65,8 +66,7 @@ export default function BookAppointment() {
         </select>
 
         <label className="block mb-1">בחירת תאריך</label>
-        <input type="date" value={date} min={today} onChange={(e) => setDate(e.target.value)}
-               className="w-full border rounded p-2 mb-4" />
+        <DateInput value={date} min={today} onChange={(e) => setDate(e.target.value)} className="mb-4" />
 
         {slots.length > 0 && (
           <>

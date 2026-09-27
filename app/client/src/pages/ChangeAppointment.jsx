@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import { todayString } from "../dates";
+import DateInput from "../components/DateInput";
 
 export default function ChangeAppointment() {
   const [list, setList] = useState([]);
@@ -84,9 +85,7 @@ export default function ChangeAppointment() {
             ) : (
               <div className="mt-3 border-t pt-3">
                 <label className="block mb-1">בחירת תאריך חדש</label>
-                <input type="date" value={date} min={today}
-                       onChange={(e) => setDate(e.target.value)}
-                       className="w-full border rounded p-2 mb-3" />
+                <DateInput value={date} min={today} onChange={(e) => setDate(e.target.value)} className="mb-3" />
 
                 {slots.length > 0 && (
                   <>

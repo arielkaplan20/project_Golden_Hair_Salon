@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import { saveUser } from "../auth";
+import DateInput from "../components/DateInput";
 
 export default function Profile() {
   const [form, setForm] = useState({
@@ -71,8 +72,7 @@ export default function Profile() {
                className="w-full border rounded p-2 mb-3" />
 
         <label className="block mb-1">תאריך לידה</label>
-        <input type="date" name="birthDate" value={form.birthDate} onChange={change}
-               className="w-full border rounded p-2 mb-3" />
+        <DateInput name="birthDate" value={form.birthDate} onChange={change} className="mb-3" />
 
         <div className="border-t pt-3 mt-3">
           <p className="mb-2 text-gray-600">שינוי סיסמה (יש למלא רק אם רוצים להחליף)</p>
