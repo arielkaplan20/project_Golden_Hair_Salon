@@ -72,7 +72,7 @@ class Diagram:
 
 
 # ---------------------------------------------------------------- sequence diagrams
-def sequence(name, parts, steps, spacing=None, font=None, left=150):
+def sequence(name, parts, steps, spacing=None, font=None, left=150, right_pad=130):
     """parts: [(key, label, 'actor'|'box')]
     steps: list of
       ('m', from, to, text)      call        ('r', from, to, text) return (dashed)
@@ -81,18 +81,25 @@ def sequence(name, parts, steps, spacing=None, font=None, left=150):
       ('else', guard)            separator inside the open alt
       ('end',)                   close the fragment
     Message numbering is automatic: <prefix>.<k>.
-    font: text size of the messages (default 11); left: x of the first lifeline."""
+    font: text size of the messages (default 11) - the heads, the frames and the gaps between the messages
+    grow with it; left: x of the first lifeline; right_pad: how far the frames reach past the last lifeline."""
     d = Diagram(name)
     spacing = spacing or (250 if len(parts) <= 3 else 215)
     xs = {k: left + i * spacing for i, (k, _, _) in enumerate(parts)}
     fs = f"fontSize={font};" if font else ""
+    k_ = max(1, font / 12) if font else 1           # 1 keeps every other diagram exactly as it was
+    step, self_step = round(45 * k_), round(55 * k_)
+    hw, hh = round(120 * k_), round(40 * k_ ** 0.5)
+    tab_w, tab_h = round(50 * k_), round(20 * k_)
+    frame_style = FRAME.replace("width=50;height=20;", f"width={tab_w};height={tab_h};") + fs
+    text_style = TEXT + fs
     kinds = {k: kind for k, _, kind in parts}
     top = 20
     for k, label, kind in parts:
         if kind == "actor":
-            d.vertex(label, ACTOR, xs[k] - 15, top, 30, 50)
+            d.vertex(label, ACTOR + fs, xs[k] - 15, top, 30, 50)
         else:
-            d.vertex(label, HEAD, xs[k] - 60, top + 5, 120, 40)
+            d.vertex(label, HEAD + fs, xs[k] - hw / 2, top + 5, hw, hh)
     y = 120
     frames, stack, msgs, pending = [], [], [], []
     num = 0
@@ -102,12 +109,12 @@ def sequence(name, parts, steps, spacing=None, font=None, left=150):
         if t == "frame":
             y += 20
             stack.append({"kind": s[1], "guard": s[2], "y0": y - 10, "elses": []})
-            y += 30
+            y += round(30 * k_)
             continue
         if t == "else":
             y += 5
             stack[-1]["elses"].append((y, s[1]))
-            y += 45
+            y += step
             continue
         if t == "end":
             fr = stack.pop()
@@ -121,17 +128,17 @@ def sequence(name, parts, steps, spacing=None, font=None, left=150):
             x = xs[s[1]]
             pending.append((label, SELF + fs, (x + 5, y), (x + 5, y + 20), [(x + 40, y), (x + 40, y + 20)]))
             msgs.append((s[1], y - 6, 32))
-            y += 55
+            y += self_step
         else:
             a, b = xs[s[1]], xs[s[2]]
             off = 5 if b > a else -5
             pending.append((label, (MSG if t == "m" else RET) + fs, (a + off, y), (b - off, y), []))
             msgs.append((s[2], y - 8, 24))
-            y += 45
+            y += step
     bottom = y + 10
     # lifelines and activation bars
     for k, _, kind in parts:
-        start = top + 70 if kind == "actor" else top + 45
+        start = top + 70 if kind == "actor" else top + 5 + hh
         d.edge("", LIFELINE, sp=(xs[k], start), tp=(xs[k], bottom))
         if kind == "actor":
             d.vertex("", BAR, xs[k] - 5, 100, 10, bottom - 110)
@@ -139,16 +146,17 @@ def sequence(name, parts, steps, spacing=None, font=None, left=150):
         if kinds[k] != "actor":
             d.vertex("", BAR, xs[k] - 5, by, 10, bh)
     # combined fragments (outer ones first so inner ones draw on top)
-    right = max(xs.values()) + 130
+    right = max(xs.values()) + right_pad
     for depth, fr in sorted(frames, key=lambda f: f[0]):
         x0 = 15 + depth * 12
         w = right - x0 - depth * 12
-        d.vertex(f"<b>{fr['kind']}</b>", FRAME, x0, fr["y0"], w, fr["y1"] - fr["y0"])
+        d.vertex(f"<b>{fr['kind']}</b>", frame_style, x0, fr["y0"], w, fr["y1"] - fr["y0"])
         # white behind the guard only, so a lifeline or activation bar never runs through its text
-        d.vertex(f"<span style='background:#ffffff'>[{fr['guard']}]</span>", TEXT, x0 + 55, fr["y0"], 300, 20)
+        d.vertex(f"<span style='background:#ffffff'>[{fr['guard']}]</span>", text_style, x0 + tab_w + 5, fr["y0"],
+                 400, tab_h)
         for ey, g in fr["elses"]:
             d.edge("", ELSE_LINE, sp=(x0, ey), tp=(x0 + w, ey))
-            d.vertex(f"<span style='background:#ffffff'>[{g}]</span>", TEXT, x0 + 5, ey + 2, 300, 20)
+            d.vertex(f"<span style='background:#ffffff'>[{g}]</span>", text_style, x0 + 5, ey + 2, 400, tab_h)
     for label, style, sp, tp, pts in pending:
         d.edge(label, style, sp=sp, tp=tp, points=pts)
     return d.save()
@@ -719,7 +727,7 @@ OBJ = {
 
 
 # the diagrams redrawn to match the code get larger text and tighter lifelines
-OBJ_OPTS = {"OBJ-UserRegister": {"spacing": 220, "font": 12, "left": 110}}
+OBJ_OPTS = {"OBJ-UserRegister": {"spacing": 268, "font": 16, "left": 100, "right_pad": 70}}
 
 
 if __name__ == "__main__":
