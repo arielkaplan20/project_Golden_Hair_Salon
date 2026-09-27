@@ -174,9 +174,16 @@ def class_box(d, name, attrs, methods, x, y, w=200):
     return cid, (x, y, w, h)
 
 
-def link(d, style, src, tgt, pts, a, b, label=""):
-    """Edge between two boxes; a/b are (fx, fy) anchor fractions, pts are bend points."""
+LABEL_ABOVE = "verticalAlign=bottom;labelBackgroundColor=none;"      # label sits just above a horizontal line
+LABEL_SIDE = "align=left;spacingLeft=6;labelBackgroundColor=none;"   # label next to a vertical line
+
+
+def link(d, style, src, tgt, pts, a, b, label="", place="above"):
+    """Edge between two boxes; a/b are (fx, fy) anchor fractions, pts are bend points.
+    place: where the label goes relative to the middle of the line - "above" or "side"."""
     s = f"{style}exitX={a[0]};exitY={a[1]};entryX={b[0]};entryY={b[1]};"
+    if label:
+        s += LABEL_SIDE if place == "side" else LABEL_ABOVE
     return d.edge(label, s, points=pts, source=src, target=tgt)
 
 
@@ -226,16 +233,16 @@ def pdom_concept():
     link(d, ASSOC, ids["Barber"], ids["Appointment"], [(600, 290), (500, 290)], (0.25, 1), (0.75, 0), "מבצע")
     mult(d, "1", 612, 245); mult(d, "0..*", 520, 325)
     # Barber owns his work schedule
-    link(d, COMP, ids["Barber"], ids["WorkSchedule"], [(690, 290), (720, 290)], (0.8125, 1), (0.5, 0), "מגדיר")
-    mult(d, "1", 702, 245); mult(d, "1", 738, 325)
+    link(d, COMP, ids["Barber"], ids["WorkSchedule"], [], (0.875, 1), (0.375, 0), "מגדיר", "side")   # straight at x=700
+    mult(d, "1", 714, 245); mult(d, "1", 714, 325)
     # Client places Orders
     link(d, ASSOC, ids["Client"], ids["Order"], [(290, 290), (110, 290)], (0.125, 1), (0.5, 0), "מבצע הזמנה")
     mult(d, "1", 278, 245); mult(d, "0..*", 128, 325)
     # Order is made of OrderItems, each refers to a Product
-    link(d, COMP, ids["Order"], ids["OrderItem"], [], (0.5, 1), (0.5, 0), "מכילה")
+    link(d, COMP, ids["Order"], ids["OrderItem"], [], (0.5, 1), (0.5, 0), "מכילה", "side")
     mult(d, "1", 125, 412); mult(d, "1..*", 128, 488)
     link(d, ASSOC, ids["OrderItem"], ids["Product"], [], (1, 0.5), (0, 0.5), "מתייחס ל")
-    mult(d, "0..*", 208, 518); mult(d, "1", 290, 518)
+    mult(d, "0..*", 208, 544); mult(d, "1", 290, 544)   # below the line, the label is above it
     return d.save()
 
 
@@ -276,21 +283,21 @@ def pdom_classes():
         link(d, INHERIT, ids[k], ids["User"], [(center_x(box[k]), trunk), (390, trunk)], (0.5, 0), (0.5, 1))
     gap = y3 - 30
     cb, bb = box["Client"], box["Barber"]
-    link(d, ASSOC, ids["Client"], ids["Appointment"], [], (0.5, 1), (0.5, 0), "מזמין")
+    link(d, ASSOC, ids["Client"], ids["Appointment"], [], (0.5, 1), (0.5, 0), "מזמין", "side")
     mult(d, "1", 403, cb[1] + cb[3] + 12); mult(d, "0..*", 408, y3 - 12)
     link(d, ASSOC, ids["Barber"], ids["Appointment"], [(610, gap), (450, gap)], (0.25, 1), (0.8, 0), "מבצע")
     mult(d, "1", 622, bb[1] + bb[3] + 12); mult(d, "0..*", 470, y3 - 12)
-    link(d, COMP, ids["Barber"], ids["WorkSchedule"], [], (0.75, 1), (150 / 230, 0), "מגדיר")   # straight down from Barber
+    link(d, COMP, ids["Barber"], ids["WorkSchedule"], [], (0.75, 1), (150 / 230, 0), "מגדיר", "side")   # straight down from Barber
     mult(d, "1", 722, bb[1] + bb[3] + 12); mult(d, "1", 722, y3 - 12)
     link(d, ASSOC, ids["Client"], ids["Order"], [(330, gap), (120, gap)], (0.2, 1), (0.5, 0), "מבצע הזמנה")
     mult(d, "1", 342, cb[1] + cb[3] + 12); mult(d, "0..*", 138, y3 - 12)
     ob = box["Order"]
-    link(d, COMP, ids["Order"], ids["OrderItem"], [], (0.5, 1), (0.5, 0), "מכילה")
+    link(d, COMP, ids["Order"], ids["OrderItem"], [], (0.5, 1), (0.5, 0), "מכילה", "side")
     mult(d, "1", 135, ob[1] + ob[3] + 12); mult(d, "1..*", 138, y4 - 12)
     oib, pb = box["OrderItem"], box["Product"]
     ymid = oib[1] + 40
     link(d, ASSOC, ids["OrderItem"], ids["Product"], [], (1, 40 / oib[3]), (0, 40 / pb[3]), "מתייחס ל")
-    mult(d, "0..*", 240, ymid - 12); mult(d, "1", 280, ymid - 12)
+    mult(d, "0..*", 240, ymid + 14); mult(d, "1", 280, ymid + 14)   # below the line, the label is above it
     return d.save()
 
 
@@ -309,8 +316,8 @@ def component_users():
     u = class_box(d, "User", ["- firstName: String", "- lastName: String", "- email: String", "- passwordHash: String",
                               "- address: String", "- birthDate: Date", "- role: String"],
                   ["+ hashPassword(password)"], 340, 330, 210)
-    link(d, ASSOC, a[0], b[0], [], (0.5, 1), (0.5, 0), "שולח פרטים")
-    link(d, ASSOC, b[0], c[0], [], (0.5, 1), (0.5, 0), "שומר / שולף")
+    link(d, ASSOC, a[0], b[0], [], (0.5, 1), (0.5, 0), "שולח פרטים", "side")
+    link(d, ASSOC, b[0], c[0], [], (0.5, 1), (0.5, 0), "שומר / שולף", "side")
     link(d, ASSOC, b[0], u[0], [], (1, 45 / b[1][3]), (0, 45 / u[1][3]), "יוצר")
     link(d, ASSOC, c[0], u[0], [(445, c[1][1] + 50)], (1, 50 / c[1][3]), (0.5, 1), "מכיל")
     mult(d, "0..*", 470, u[1][1] + u[1][3] + 12)
@@ -328,17 +335,17 @@ def component_appointments():
     c = class_box(d, "Service Providers DB", ["- barbers: Collection&lt;Barber&gt;"],
                   ["+ getBarbers()", "+ getWorkSchedule(barberId)"], 20, 540, 230)
     e = class_box(d, "Appointments DB", ["- appointments: Collection&lt;Appointment&gt;"],
-                  ["+ findByBarberAndDate(barberId, date)", "+ insertAppointment(appt)", "+ updateAppointment(appt)",
-                   "+ deleteAppointment(apptId)"], 520, 540, 250)
+                  ["+ findByBarberAndDate(barberId, date)", "+ insertAppointment(appt)", "+ updateAppointment(appt)"],
+                  520, 540, 250)   # cancelling goes through updateAppointment (status), as in the state machine
     ap = class_box(d, "Appointment", ["- clientId: String", "- barberId: String", "- date: Date", "- time: String",
                                       "- status: String"], ["+ reschedule(date, time)", "+ cancel()"], 580, 250, 190)
-    link(d, ASSOC, a[0], b[0], [], (0.5, 1), (0.5, 0), "בקשת תור")
+    link(d, ASSOC, a[0], b[0], [], (0.5, 1), (0.5, 0), "בקשת תור", "side")
     bb = b[1]
     ybot = bb[1] + bb[3]
     link(d, ASSOC, b[0], c[0], [(300, ybot + 40), (135, ybot + 40)], (70 / 300, 1), (0.5, 0), "שעות עבודה")
     link(d, ASSOC, b[0], e[0], [(460, ybot + 40), (600, ybot + 40)], (230 / 300, 1), (80 / 250, 0), "שמירה / שליפה")
     link(d, ASSOC, b[0], ap[0], [], (1, 45 / bb[3]), (0, 45 / ap[1][3]), "יוצר")
-    link(d, ASSOC, e[0], ap[0], [], ((675 - 520) / 250, 0), (0.5, 1), "מכיל")
+    link(d, ASSOC, e[0], ap[0], [], ((675 - 520) / 250, 0), (0.5, 1), "מכיל", "side")
     return d.save()
 
 
