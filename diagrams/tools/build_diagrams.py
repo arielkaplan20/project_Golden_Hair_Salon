@@ -72,7 +72,7 @@ class Diagram:
 
 
 # ---------------------------------------------------------------- sequence diagrams
-def sequence(name, parts, steps, spacing=None, font=None, left=150, right_pad=130):
+def sequence(name, parts, steps, spacing=None, font=None, left=150, right_pad=130, label_bg=False):
     """parts: [(key, label, 'actor'|'box')]
     steps: list of
       ('m', from, to, text)      call        ('r', from, to, text) return (dashed)
@@ -87,6 +87,8 @@ def sequence(name, parts, steps, spacing=None, font=None, left=150, right_pad=13
     spacing = spacing or (250 if len(parts) <= 3 else 215)
     xs = {k: left + i * spacing for i, (k, _, _) in enumerate(parts)}
     fs = f"fontSize={font};" if font else ""
+    if label_bg:
+        fs += "labelBackgroundColor=#ffffff;"
     k_ = max(1, font / 12) if font else 1           # 1 keeps every other diagram exactly as it was
     step, self_step = round(45 * k_), round(55 * k_)
     hw, hh = round(120 * k_), round(40 * k_ ** 0.5)
@@ -418,27 +420,50 @@ def component_users():
 
 
 def component_appointments():
+    # Matches the code: the screens are the React pages (each operation is the function in the page that sends the
+    # request), Appointments Manager is appointmentController.js, the two DB boxes are the collections that the
+    # ServiceProvider and Appointment models read and write, and Appointment has the fields of models/Appointment.js.
     d = Diagram("CLS-AppointmentsManager")
-    a = class_box(d, "Appointment Client (GUI)", ["- selectedBarber: String", "- selectedDate: Date", "- selectedTime: String"],
-                  ["+ chooseBarber(barberId)", "+ chooseDate(date)", "+ confirmBooking()", "+ showMessage(text)"], 255, 20, 250)
-    b = class_box(d, "Appointments Manager", ["- appointmentsDB: AppointmentsDB", "- providersDB: ServiceProvidersDB"],
-                  ["+ getAvailableSlots(barberId, date)", "+ BookAppointment(clientId, barberId, date, time)",
-                   "+ changeAppointment(apptId, date, time)", "+ cancelAppointment(apptId)",
-                   "+ getClientAppointments(clientId)", "- calcFreeSlots(schedule, bookedList)"], 230, 250, 300)
-    c = class_box(d, "Service Providers DB", ["- barbers: Collection&lt;Barber&gt;"],
-                  ["+ getBarbers()", "+ getWorkSchedule(barberId)"], 20, 540, 230)
-    e = class_box(d, "Appointments DB", ["- appointments: Collection&lt;Appointment&gt;"],
-                  ["+ findByBarberAndDate(barberId, date)", "+ insertAppointment(appt)", "+ updateAppointment(appt)"],
-                  520, 540, 250)   # cancelling goes through updateAppointment (status), as in the state machine
-    ap = class_box(d, "Appointment", ["- clientId: String", "- barberId: String", "- date: Date", "- time: String",
-                                      "- status: String"], ["+ reschedule(date, time)", "+ cancel()"], 580, 250, 190)
-    link(d, ASSOC, a[0], b[0], [], (0.5, 1), (0.5, 0), "בקשת תור", "side")
-    bb = b[1]
-    ybot = bb[1] + bb[3]
-    link(d, ASSOC, b[0], c[0], [(300, ybot + 40), (135, ybot + 40)], (70 / 300, 1), (0.5, 0), "שעות עבודה")
-    link(d, ASSOC, b[0], e[0], [(460, ybot + 40), (600, ybot + 40)], (230 / 300, 1), (80 / 250, 0), "שמירה / שליפה")
-    link(d, ASSOC, b[0], ap[0], [], (1, 45 / bb[3]), (0, 45 / ap[1][3]), "יוצר")
-    link(d, ASSOC, e[0], ap[0], [], ((675 - 520) / 250, 0), (0.5, 1), "מכיל", "side")
+    WM, XA = 245, 395
+    mx = WM / 2
+    gui = class_box(d, "Appointment Client (GUI)", ["- barbers: Array", "- barberId: String", "- date: String",
+                                                    "- slots: Array&lt;String&gt;", "- message: String",
+                                                    "- error: String"],
+                    ["+ BookAppointment.book(time)", "+ ChangeAppointment.loadList()", "+ ChangeAppointment.save(time)",
+                     "+ CancelAppointment.loadList()", "+ CancelAppointment.doCancel()"],
+                    mx - 108, 0, 216, big=True)
+    ym = gui[1][3] + 80
+    am = class_box(d, "Appointments Manager", [],
+                   ["+ getBarbers(req, res)", "+ getFreeSlots(req, res)", "+ bookAppointment(req, res)",
+                    "+ myAppointments(req, res)", "+ changeAppointment(req, res)", "+ cancelAppointment(req, res)",
+                    "+ calcFreeSlots(schedule, bookedList)", "- isWorkingSlot(barberId, date, time)",
+                    "- toMinutes(t)", "- toTime(minutes)"], 0, ym, WM, big=True)
+    ap = class_box(d, "Appointment", ["- clientId: Client", "- barberId: Barber", "- date: String", "- time: String",
+                                      "- haircutType: String", "- status: String"], ["+ save()"], XA, ym, 180, big=True)
+    lane = ym + am[1][3] + 30
+    yb = lane + 64
+    sp = class_box(d, "Service Providers DB", ["- barbers: Collection&lt;Barber&gt;"],
+                   ["+ find()", "+ findById(id)"], 0, yb, 190, big=True)
+    XD = 330
+    db = class_box(d, "Appointments DB", ["- appointments: Collection&lt;Appointment&gt;"],
+                   ["+ find(filter)", "+ findOne(filter)", "+ create(data)"], XD, yb, 262, big=True)
+    link(d, ASSOC, gui[0], am[0], [], (0.5, 1), (0.5, 0))
+    rel(d, "המסך שולח בקשה לשרת", mx, (gui[1][3] + ym) / 2, "right")
+    link(d, ASSOC, am[0], ap[0], [], (1, 40 / am[1][3]), (0, 40 / ap[1][3]))
+    rel(d, "יוצר ומעדכן תורים", (WM + XA) / 2, ym + 40, "above")
+    # to the barbers: straight down, the name below the lane of the Appointments DB line
+    sx = 95
+    link(d, ASSOC, am[0], sp[0], [], (sx / WM, 1), (sx / 190, 0))
+    rel(d, "שולף ספרים ושעות עבודה", sx, lane + 30, "right")
+    # to the appointments: down, right along the lane, down into Appointments DB
+    ax, dx = 0.85 * WM, XD + 60
+    link(d, ASSOC, am[0], db[0], [(ax, lane), (dx, lane)], (0.85, 1), (60 / 262, 0))
+    rel(d, "שומר ושולף תורים", (ax + dx) / 2, lane, "above")
+    # Appointments DB holds every appointment
+    cx = XA + 90
+    link(d, ASSOC, db[0], ap[0], [], ((cx - XD) / 262, 0), (0.5, 1))
+    rel(d, "מכיל את כל התורים", cx, (ym + ap[1][3] + yb) / 2, "right")
+    mult(d, "1", cx + 12, yb - 12, 12); mult(d, "0..*", cx + 18, ym + ap[1][3] + 14, 12)
     return d.save()
 
 
@@ -700,34 +725,42 @@ OBJ = {
         ("s", "gui", "navigate(\"/login\")"),
         ("end",),
         ("end",)]),
-    "OBJ-BookAppointment": ([C, ("gui", ":Appointment Client", "box"), ("am", ":Appointments Manager", "box"),
-                             ("spdb", ":Service Providers DB", "box"), ("adb", ":Appointments DB", "box"),
-                             ("ap", ":Appointment", "box")], [
-        ("m", "client", "gui", "chooseBarber(barberId), chooseDate(date)"),
-        ("m", "gui", "am", "getAvailableSlots(barberId, date)"),
-        ("m", "am", "spdb", "getWorkSchedule(barberId)"),
-        ("r", "spdb", "am", "schedule"),
-        ("m", "am", "adb", "findByBarberAndDate(barberId, date)"),
-        ("r", "adb", "am", "bookedList"),
-        ("s", "am", "calcFreeSlots(schedule, bookedList)"),
-        ("frame", "alt", "אין תורים פנויים"),
-        ("r", "am", "gui", "[]"),
-        ("r", "gui", "client", "showMessage(\"אין תורים פנויים\")"),
+    # as in BookAppointment.jsx and appointmentController (getFreeSlots, then bookAppointment). The barbers DB is
+    # last, so the many messages between the manager and the appointments do not cross it
+    "OBJ-BookAppointment": ([C, ("gui", ":Appointment Client (GUI)", "box"), ("am", ":Appointments Manager", "box"),
+                             ("adb", ":Appointments DB", "box"), ("ap", ":Appointment", "box"),
+                             ("spdb", ":Service Providers DB", "box")], [
+        ("m", "client", "gui", "setBarberId(id), setDate(date)"),
+        ("m", "gui", "am", "getFreeSlots(req, res)"),
+        ("m", "am", "spdb", "findById(barberId)"),
+        ("r", "spdb", "am", "barber"),
+        ("s", "am", "hoursForDate(barber, date)"),
+        ("m", "am", "adb", "find({ barberId, date, status })"),
+        ("r", "adb", "am", "booked"),
+        ("s", "am", "calcFreeSlots(hours, bookedTimes)"),
+        ("frame", "alt", "אין תורים פנויים בתאריך"),
+        ("r", "am", "gui", "{ slots: [] }"),
+        ("r", "gui", "client", "setError(message)"),
         ("else", "יש תורים פנויים"),
-        ("r", "am", "gui", "freeSlots"),
-        ("m", "client", "gui", "confirmBooking()"),
-        ("m", "gui", "am", "BookAppointment(clientId, barberId, date, time)"),
-        ("m", "am", "ap", "new Appointment(clientId, barberId, date, time)"),
-        ("m", "am", "adb", "insertAppointment(appt)"),
-        ("r", "adb", "am", "ok"),
-        ("r", "am", "gui", "confirmation"),
-        ("r", "gui", "client", "showMessage(\"התור נקבע בהצלחה\")"),
+        ("r", "am", "gui", "{ slots }"),
+        ("m", "client", "gui", "book(time)"),
+        ("m", "gui", "am", "bookAppointment(req, res)"),
+        ("s", "am", "isWorkingSlot(barberId, date, time)"),
+        ("m", "am", "adb", "findOne({ barberId, date, time })"),
+        ("r", "adb", "am", "null"),
+        ("m", "am", "adb", "create({ clientId, barberId, date, time })"),
+        ("m", "adb", "ap", "new Appointment(data) + save()"),
+        ("r", "adb", "am", "appointment"),
+        ("s", "am", "sendAppointmentConfirmation()"),
+        ("r", "am", "gui", "201 { message }"),
+        ("r", "gui", "client", "setMessage(message)"),
         ("end",)]),
 }
 
 
 # the diagrams redrawn to match the code get larger text and tighter lifelines
-OBJ_OPTS = {"OBJ-UserRegister": {"spacing": 268, "font": 16, "left": 100, "right_pad": 70}}
+OBJ_OPTS = {"OBJ-UserRegister": {"spacing": 268, "font": 16, "left": 100, "right_pad": 70},
+            "OBJ-BookAppointment": {"spacing": 262, "font": 15, "left": 100, "right_pad": 90, "label_bg": True}}
 
 
 if __name__ == "__main__":
