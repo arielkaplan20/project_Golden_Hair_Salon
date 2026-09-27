@@ -718,49 +718,66 @@ OBJ = {
         ("else", "דוא\"ל חדש"),
         ("s", "um", "bcrypt.hash(password, 10)"),
         ("m", "um", "udb", "create({ ..., passwordHash })"),
-        ("m", "udb", "usr", "new User(data) + save()"),
+        ("m", "udb", "usr", "new User(data).save()"),
         ("r", "udb", "um", "user"),
         ("r", "um", "gui", "201 { message }"),
         ("r", "gui", "user", "setSuccess(message)"),
         ("s", "gui", "navigate(\"/login\")"),
         ("end",),
         ("end",)]),
-    # as in BookAppointment.jsx and appointmentController (getFreeSlots, then bookAppointment). The barbers DB is
-    # last, so the many messages between the manager and the appointments do not cross it
-    "OBJ-BookAppointment": ([C, ("gui", ":Appointment Client (GUI)", "box"), ("am", ":Appointments Manager", "box"),
-                             ("adb", ":Appointments DB", "box"), ("ap", ":Appointment", "box"),
-                             ("spdb", ":Service Providers DB", "box")], [
+    # Booking an appointment, as in BookAppointment.jsx and appointmentController, in two diagrams so the text can
+    # be large: 1 - the free slots for the barber and date (getFreeSlots), 2 - booking the chosen time (bookAppointment)
+    "OBJ-BookAppointment-1": ([C, ("gui", ":Appointment Client (GUI)", "box"), ("am", ":Appointments Manager", "box"),
+                               ("spdb", ":Service Providers DB", "box"), ("adb", ":Appointments DB", "box")], [
         ("m", "client", "gui", "setBarberId(id), setDate(date)"),
         ("m", "gui", "am", "getFreeSlots(req, res)"),
         ("m", "am", "spdb", "findById(barberId)"),
         ("r", "spdb", "am", "barber"),
         ("s", "am", "hoursForDate(barber, date)"),
+        ("frame", "alt", "הספר לא עובד בתאריך הזה"),
+        ("r", "am", "gui", "{ slots: [] }"),
+        ("else", "הספר עובד בתאריך הזה"),
         ("m", "am", "adb", "find({ barberId, date, status })"),
         ("r", "adb", "am", "booked"),
         ("s", "am", "calcFreeSlots(hours, bookedTimes)"),
-        ("frame", "alt", "אין תורים פנויים בתאריך"),
-        ("r", "am", "gui", "{ slots: [] }"),
+        ("r", "am", "gui", "{ slots }"),
+        ("end",),
+        ("s", "gui", "setSlots(slots)"),
+        ("frame", "alt", "אין תורים פנויים"),
         ("r", "gui", "client", "setError(message)"),
         ("else", "יש תורים פנויים"),
-        ("r", "am", "gui", "{ slots }"),
+        ("r", "gui", "client", "כפתור לכל שעה פנויה"),
+        ("end",)]),
+    "OBJ-BookAppointment-2": ([C, ("gui", ":Appointment Client (GUI)", "box"), ("am", ":Appointments Manager", "box"),
+                               ("adb", ":Appointments DB", "box"), ("ap", ":Appointment", "box")], [
         ("m", "client", "gui", "book(time)"),
         ("m", "gui", "am", "bookAppointment(req, res)"),
         ("s", "am", "isWorkingSlot(barberId, date, time)"),
+        ("frame", "alt", "השעה מחוץ לשעות העבודה של הספר"),
+        ("r", "am", "gui", "400 { message }"),
+        ("r", "gui", "client", "setError(message)"),
+        ("else", "השעה בשעות העבודה"),
         ("m", "am", "adb", "findOne({ barberId, date, time })"),
-        ("r", "adb", "am", "null"),
-        ("m", "am", "adb", "create({ clientId, barberId, date, time })"),
-        ("m", "adb", "ap", "new Appointment(data) + save()"),
+        ("r", "adb", "am", "taken"),
+        ("frame", "alt", "התור כבר נתפס"),
+        ("r", "am", "gui", "400 { message }"),
+        ("r", "gui", "client", "setError(message)"),
+        ("else", "התור פנוי"),
+        ("m", "am", "adb", "create({ clientId, barberId,<br>date, time })"),
+        ("m", "adb", "ap", "new Appointment(data).save()"),
         ("r", "adb", "am", "appointment"),
         ("s", "am", "sendAppointmentConfirmation()"),
         ("r", "am", "gui", "201 { message }"),
         ("r", "gui", "client", "setMessage(message)"),
+        ("end",),
         ("end",)]),
 }
 
 
 # the diagrams redrawn to match the code get larger text and tighter lifelines
 OBJ_OPTS = {"OBJ-UserRegister": {"spacing": 268, "font": 16, "left": 100, "right_pad": 70},
-            "OBJ-BookAppointment": {"spacing": 262, "font": 15, "left": 100, "right_pad": 90, "label_bg": True}}
+            "OBJ-BookAppointment-1": {"spacing": 278, "font": 17, "left": 100, "right_pad": 80, "label_bg": True},
+            "OBJ-BookAppointment-2": {"spacing": 278, "font": 17, "left": 100, "right_pad": 80, "label_bg": True}}
 
 
 if __name__ == "__main__":
