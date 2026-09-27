@@ -159,18 +159,20 @@ ROWS = "text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacin
 SEP = "line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;strokeColor=#d6b656;"
 
 
-def box_height(attrs, methods):
-    return 26 + max(1, len(attrs)) * 15 + 8 + 8 + max(1, len(methods)) * 15 + 8
-
-
-def class_box(d, name, attrs, methods, x, y, w=200):
-    ah = max(1, len(attrs)) * 15 + 8
-    mh = max(1, len(methods)) * 15 + 8
-    h = 26 + ah + 8 + mh
-    cid = d.vertex(name, CLS, x, y, w, h)
-    d.vertex("<br>".join(attrs), ROWS, 0, 26, w, ah, parent=cid)
-    d.vertex("", SEP, 0, 26 + ah, w, 8, parent=cid)
-    d.vertex("<br>".join(methods), ROWS, 0, 26 + ah + 8, w, mh, parent=cid)
+def class_box(d, name, attrs, methods, x, y, w=200, big=False):
+    """big: larger text and tighter rows, for a diagram that has to be read on a full book page."""
+    head, line, pad = (30, 16, 6) if big else (26, 15, 8)
+    cls = CLS.replace("startSize=26", "startSize=30").replace("fontSize=14", "fontSize=16") if big else CLS
+    rows = ROWS.replace("fontSize=11", "fontSize=13") if big else ROWS
+    # a class without fields of its own gets an empty fields box; a data class without operations has no operations box
+    ah = len(attrs) * line + pad if attrs else 10
+    mh = len(methods) * line + pad if methods else 0
+    h = head + ah + (8 + mh if methods else 0)
+    cid = d.vertex(name, cls, x, y, w, h)
+    d.vertex("<br>".join(attrs), rows, 0, head, w, ah, parent=cid)
+    if methods:
+        d.vertex("", SEP, 0, head + ah, w, 8, parent=cid)
+        d.vertex("<br>".join(methods), rows, 0, head + ah + 8, w, mh, parent=cid)
     return cid, (x, y, w, h)
 
 
@@ -195,8 +197,23 @@ MULT = "text;html=1;align=center;verticalAlign=middle;fillColor=none;strokeColor
 CONCEPT = "rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1;"
 
 
-def mult(d, text, x, y):
-    d.vertex(text, MULT, x - 20, y - 10, 40, 20)
+def mult(d, text, x, y, size=11):
+    d.vertex(text, MULT.replace("fontSize=11", f"fontSize={size}"), x - 20, y - 10, 40, 20)
+
+
+REL = "text;html=1;fillColor=none;strokeColor=none;whiteSpace=nowrap;fontSize=12;"
+
+
+def rel(d, text, x, y, place):
+    """Name of a relationship as its own text, so no line ever runs through it.
+    place "above": (x, y) is the middle of a horizontal line; "left"/"right": (x, y) is a point on a vertical line."""
+    w = 150
+    if place == "above":
+        d.vertex(text, REL + "align=center;verticalAlign=bottom;", x - w / 2, y - 22, w, 20)
+    elif place == "left":
+        d.vertex(text, REL + "align=right;verticalAlign=middle;", x - 6 - w, y - 10, w, 20)
+    else:
+        d.vertex(text, REL + "align=left;verticalAlign=middle;", x + 6, y - 10, w, 20)
 
 
 def center_x(box, f=0.5):
@@ -207,8 +224,8 @@ def center_x(box, f=0.5):
 def pdom_concept():
     d = Diagram("PDOM-concept")
     W, H = 160, 60
-    pos = {"User": (270, 20), "Admin": (30, 170), "Client": (270, 170), "Barber": (560, 170),
-           "Order": (30, 340), "Appointment": (380, 340), "WorkSchedule": (640, 340),
+    pos = {"User": (180, 20), "Client": (30, 170), "Barber": (330, 170), "Admin": (630, 170),
+           "Order": (30, 340), "Appointment": (330, 340), "WorkSchedule": (630, 340),
            "OrderItem": (30, 500), "Product": (300, 500)}
     heb = {"User": "User<br><span style='font-weight:normal'>משתמש</span>",
            "Admin": "Admin<br><span style='font-weight:normal'>מנהל ראשי</span>",
@@ -223,81 +240,131 @@ def pdom_concept():
     for k, (x, y) in pos.items():
         ids[k] = d.vertex(heb[k], CONCEPT, x, y, W, H)
         box[k] = (x, y, W, H)
+    # Client and Barber are users; the admin also works as a barber
     trunk = 125
-    for k in ("Admin", "Client", "Barber"):
-        cx = center_x(box[k])
-        link(d, INHERIT, ids[k], ids["User"], [(cx, trunk), (350, trunk)], (0.5, 0), (0.5, 1))
-    # Client books Appointment, Barber performs it
-    link(d, ASSOC, ids["Client"], ids["Appointment"], [(330, 290), (420, 290)], (0.375, 1), (0.25, 0), "מזמין")
-    mult(d, "1", 318, 245); mult(d, "0..*", 440, 325)
-    link(d, ASSOC, ids["Barber"], ids["Appointment"], [(600, 290), (500, 290)], (0.25, 1), (0.75, 0), "מבצע")
-    mult(d, "1", 612, 245); mult(d, "0..*", 520, 325)
-    # Barber owns his work schedule
-    link(d, COMP, ids["Barber"], ids["WorkSchedule"], [], (0.875, 1), (0.375, 0), "מגדיר", "side")   # straight at x=700
-    mult(d, "1", 714, 245); mult(d, "1", 714, 325)
-    # Client places Orders
-    link(d, ASSOC, ids["Client"], ids["Order"], [(290, 290), (110, 290)], (0.125, 1), (0.5, 0), "מבצע הזמנה")
-    mult(d, "1", 278, 245); mult(d, "0..*", 128, 325)
+    for k in ("Client", "Barber"):
+        link(d, INHERIT, ids[k], ids["User"], [(center_x(box[k]), trunk), (260, trunk)], (0.5, 0), (0.5, 1))
+    link(d, INHERIT, ids["Admin"], ids["Barber"], [], (0, 0.5), (1, 0.5))
+    # Client places Orders: straight down
+    link(d, ASSOC, ids["Client"], ids["Order"], [], (0.25, 1), (0.25, 0))
+    rel(d, "לקוח מבצע הזמנות", 70, 262, "right")
+    mult(d, "1", 58, 245); mult(d, "0..*", 52, 325)
+    # Client books Appointments: down, right, down
+    link(d, ASSOC, ids["Client"], ids["Appointment"], [(180, 290), (370, 290)], (0.9375, 1), (0.25, 0))
+    rel(d, "לקוח מזמין תורים", 275, 290, "above")
+    mult(d, "1", 192, 245); mult(d, "0..*", 352, 325)
+    # Barber performs Appointments: straight down
+    link(d, ASSOC, ids["Barber"], ids["Appointment"], [], (0.5, 1), (0.5, 0))
+    rel(d, "ספר מבצע תורים", 410, 260, "left")
+    mult(d, "1", 422, 245); mult(d, "0..*", 428, 325)
+    # Barber owns his work schedule: down, right, down
+    link(d, COMP, ids["Barber"], ids["WorkSchedule"], [(470, 290), (670, 290)], (0.875, 1), (0.25, 0))
+    rel(d, "ספר מגדיר סדר עבודה", 570, 290, "above")
+    mult(d, "1", 482, 245); mult(d, "1", 682, 325)
     # Order is made of OrderItems, each refers to a Product
-    link(d, COMP, ids["Order"], ids["OrderItem"], [], (0.5, 1), (0.5, 0), "מכילה", "side")
+    link(d, COMP, ids["Order"], ids["OrderItem"], [], (0.5, 1), (0.5, 0))
+    rel(d, "הזמנה מכילה פריטים", 110, 450, "right")
     mult(d, "1", 125, 412); mult(d, "1..*", 128, 488)
-    link(d, ASSOC, ids["OrderItem"], ids["Product"], [], (1, 0.5), (0, 0.5), "מתייחס ל")
+    link(d, ASSOC, ids["OrderItem"], ids["Product"], [], (1, 0.5), (0, 0.5))
+    rel(d, "פריט מתייחס למוצר", 245, 530, "above")
     mult(d, "0..*", 208, 544); mult(d, "1", 290, 544)   # below the line, the label is above it
     return d.save()
 
 
 # ---------------------------------------------------------------- PDOM (infrastructure classes)
 def pdom_classes():
+    # Matches the code: the fields are those of the models in app/server/src/models (a reference to another
+    # class is shown with the field name from the code, e.g. clientId: Client), and the operations are the server
+    # functions, each on the class of the user who performs it. Appointment, Order, OrderItem and Product are data
+    # only, so they have no operations box. The admin also works as a barber (every admin gets a work schedule),
+    # so Admin inherits from Barber. The lines have no arrow heads: the reference is kept on the side that has the field.
+    # It gets a book page of its own, so the text is larger and every box is only as wide as its text.
     d = Diagram("PDOM-classes")
+    X1, X2, X3 = 0, 235, 455            # three columns, 60 px apart
+    W1, W2, W3 = 175, 160, 255
     c = {}
-    c["User"] = class_box(d, "User", ["- firstName: String", "- lastName: String", "- email: String", "- password: String",
-                                      "- address: String", "- birthDate: Date", "- role: String"],
-                          ["+ register()", "+ login()", "+ updateProfile()"], 290, 20)
-    y2 = c["User"][1][1] + c["User"][1][3] + 60
-    c["Admin"] = class_box(d, "Admin", ["- permissions: Array&lt;String&gt;"],
-                           ["+ manageUsers()", "+ manageAppointments()", "+ manageShop()"], 20, y2)
-    c["Client"] = class_box(d, "Client", ["- appointments: Array&lt;Appointment&gt;", "- orders: Array&lt;Order&gt;"],
-                            ["+ bookAppointment()", "+ changeAppointment()", "+ cancelAppointment()", "+ placeOrder()"], 290, y2)
-    c["Barber"] = class_box(d, "Barber", ["- schedule: WorkSchedule", "- appointments: Array&lt;Appointment&gt;"],
-                            ["+ viewDiary()", "+ updateWorkHours()"], 560, y2)
-    y3 = max(c[k][1][1] + c[k][1][3] for k in ("Admin", "Client", "Barber")) + 70
-    c["Order"] = class_box(d, "Order", ["- orderNumber: String", "- items: Array&lt;OrderItem&gt;", "- deliveryType: String",
-                                        "- address: String", "- totalPrice: Number", "- status: String", "- date: Date"],
-                           ["+ calculateTotal()", "+ pay()"], 20, y3)
-    c["Appointment"] = class_box(d, "Appointment", ["- client: Client", "- barber: Barber", "- date: Date", "- time: String",
-                                                    "- haircutType: String", "- status: String"],
-                                 ["+ reschedule()", "+ cancel()"], 290, y3)
+    cx1, cx2 = X1 + W1 / 2, X2 + W2 / 2
+    UW = 180
+    c["User"] = class_box(d, "User", ["- firstName: String", "- lastName: String", "- email: String",
+                                      "- passwordHash: String", "- address: String", "- birthDate: Date",
+                                      "- role: String", "- resetToken: String", "- resetTokenExpires: Date"],
+                          ["+ register()", "+ login()", "+ updateProfile()", "+ forgotPassword()", "+ resetPassword()"],
+                          (cx1 + cx2) / 2 - UW / 2, 0, UW, big=True)
+    y2 = c["User"][1][3] + 44
+    c["Client"] = class_box(d, "Client", [],
+                            ["+ getBarbers()", "+ getFreeSlots()", "+ bookAppointment()", "+ myAppointments()",
+                             "+ changeAppointment()", "+ cancelAppointment()", "+ getProducts()", "+ getProduct()",
+                             "+ createOrder()", "+ myOrders()"],
+                            X1, y2, W1, big=True)
+    c["Barber"] = class_box(d, "Barber", [],
+                            ["+ getDiary()", "+ getMySchedule()", "+ updateMySchedule()", "+ saveException()",
+                             "+ deleteException()"], X2, y2, W2, big=True)
+    c["Admin"] = class_box(d, "Admin", [],
+                           ["+ getUsers()", "+ updateRole()", "+ getAllAppointments()", "+ getAllOrders()",
+                            "+ addProduct()", "+ updateProduct()", "+ deleteProduct()"], X3, y2, 165, big=True)
+    bottom = lambda k: c[k][1][1] + c[k][1][3]
+    lane = max(bottom(k) for k in ("Client", "Barber", "Admin")) + 40   # horizontal parts of the lines below row 2
+    y3 = lane + 56
+    c["Order"] = class_box(d, "Order", ["- orderNumber: String", "- clientId: Client", "- items: Array&lt;OrderItem&gt;",
+                                        "- deliveryType: String", "- fullName: String", "- phone: String",
+                                        "- email: String", "- pickupPoint: String", "- address: String",
+                                        "- notes: String", "- totalPrice: Number", "- status: String",
+                                        "- createdAt: Date"], [], X1, y3, W1, big=True)
+    c["Appointment"] = class_box(d, "Appointment", ["- clientId: Client", "- barberId: Barber", "- date: String",
+                                                    "- time: String", "- haircutType: String", "- status: String"],
+                                 [], X2, y3, W2, big=True)
     c["WorkSchedule"] = class_box(d, "WorkSchedule", ["- weeklySchedule: Array&lt;DaySchedule&gt;",
                                                       "- exceptions: Array&lt;DateException&gt;",
                                                       "- slotMinutes: Number"],
-                                  ["+ getHoursForDate(date)", "+ getFreeSlots(date)", "+ updateWeekly()",
-                                   "+ setException(date)", "+ removeException(date)"], 560, y3, w=230)
-    y4 = max(c[k][1][1] + c[k][1][3] for k in ("Order", "Appointment", "WorkSchedule")) + 70
-    c["OrderItem"] = class_box(d, "OrderItem", ["- product: Product", "- quantity: Number"], ["+ getPrice()"], 20, y4)
+                                  ["+ defaultWeek()", "+ weeklyOf()", "+ hoursForDate(date)",
+                                   "+ calcFreeSlots(hours, bookedList)", "+ findConflicts(appointments)"],
+                                  X3, y3, W3, big=True)
+    y4 = bottom("Order") + 70
+    c["OrderItem"] = class_box(d, "OrderItem", ["- productId: Product", "- name: String", "- price: Number",
+                                                "- quantity: Number"], [], X1, y4, W1, big=True)
+    PX = X1 + W1 + 130                  # room above the line for the name of the link
     c["Product"] = class_box(d, "Product", ["- name: String", "- description: String", "- price: Number",
-                                            "- stock: Number", "- image: String"], ["+ updateStock()"], 290, y4)
+                                            "- stock: Number", "- image: String"], [], PX, y4, 160, big=True)
     ids = {k: v[0] for k, v in c.items()}
     box = {k: v[1] for k, v in c.items()}
-    trunk = y2 - 30
-    for k in ("Admin", "Client", "Barber"):
-        link(d, INHERIT, ids[k], ids["User"], [(center_x(box[k]), trunk), (390, trunk)], (0.5, 0), (0.5, 1))
-    gap = y3 - 30
-    cb, bb = box["Client"], box["Barber"]
-    link(d, ASSOC, ids["Client"], ids["Appointment"], [], (0.5, 1), (0.5, 0), "מזמין", "side")
-    mult(d, "1", 403, cb[1] + cb[3] + 12); mult(d, "0..*", 408, y3 - 12)
-    link(d, ASSOC, ids["Barber"], ids["Appointment"], [(610, gap), (450, gap)], (0.25, 1), (0.8, 0), "מבצע")
-    mult(d, "1", 622, bb[1] + bb[3] + 12); mult(d, "0..*", 470, y3 - 12)
-    link(d, COMP, ids["Barber"], ids["WorkSchedule"], [], (0.75, 1), (150 / 230, 0), "מגדיר", "side")   # straight down from Barber
-    mult(d, "1", 722, bb[1] + bb[3] + 12); mult(d, "1", 722, y3 - 12)
-    link(d, ASSOC, ids["Client"], ids["Order"], [(330, gap), (120, gap)], (0.2, 1), (0.5, 0), "מבצע הזמנה")
-    mult(d, "1", 342, cb[1] + cb[3] + 12); mult(d, "0..*", 138, y3 - 12)
-    ob = box["Order"]
-    link(d, COMP, ids["Order"], ids["OrderItem"], [], (0.5, 1), (0.5, 0), "מכילה", "side")
-    mult(d, "1", 135, ob[1] + ob[3] + 12); mult(d, "1..*", 138, y4 - 12)
-    oib, pb = box["OrderItem"], box["Product"]
-    ymid = oib[1] + 40
-    link(d, ASSOC, ids["OrderItem"], ids["Product"], [], (1, 40 / oib[3]), (0, 40 / pb[3]), "מתייחס ל")
-    mult(d, "0..*", 240, ymid + 14); mult(d, "1", 280, ymid + 14)   # below the line, the label is above it
+    line = "endArrow=none;html=1;rounded=0;"
+
+    # Client and Barber are users; the admin is a barber too
+    trunk = y2 - 22
+    ux = box["User"][0] + UW / 2
+    for k in ("Client", "Barber"):
+        link(d, INHERIT, ids[k], ids["User"], [(center_x(box[k]), trunk), (ux, trunk)], (0.5, 0), (0.5, 1))
+    ym = y2 + box["Barber"][3] / 2
+    link(d, INHERIT, ids["Admin"], ids["Barber"], [], (0, (ym - y2) / box["Admin"][3]), (1, 0.5))
+    # the client places orders: straight down
+    ox = X1 + 0.4 * W1
+    link(d, line, ids["Client"], ids["Order"], [], (0.4, 1), (0.4, 0))
+    rel(d, "לקוח מבצע הזמנות", ox, lane + 16, "right")   # below the lane of the Client - Appointment line
+    mult(d, "1", ox + 12, bottom("Client") + 12, 12); mult(d, "0..*", ox + 18, y3 - 12, 12)
+    # the client books appointments: down, right along the lane, down into Appointment
+    cx, ax = X1 + 0.9 * W1, X2 + 0.25 * W2
+    link(d, line, ids["Client"], ids["Appointment"], [(cx, lane), (ax, lane)], (0.9, 1), (0.25, 0))
+    rel(d, "לקוח מזמין תורים", (cx + ax) / 2, lane, "above")
+    mult(d, "1", cx + 12, bottom("Client") + 12, 12); mult(d, "0..*", ax - 18, y3 - 12, 12)
+    # the barber performs appointments: straight down
+    bx = X2 + 0.6 * W2
+    link(d, line, ids["Barber"], ids["Appointment"], [], (0.6, 1), (0.6, 0))
+    rel(d, "ספר מבצע תורים", bx, (bottom("Barber") + lane) / 2, "left")
+    mult(d, "1", bx + 12, bottom("Barber") + 12, 12); mult(d, "0..*", bx + 18, y3 - 12, 12)
+    # the barber's work schedule is kept inside his record: down, right along the lane, down into WorkSchedule
+    sx, wx = X2 + 0.9 * W2, X3 + 0.35 * W3
+    link(d, COMP, ids["Barber"], ids["WorkSchedule"], [(sx, lane), (wx, lane)], (0.9, 1), (0.35, 0))
+    rel(d, "ספר מגדיר סדר עבודה", (sx + wx) / 2, lane, "above")
+    mult(d, "1", sx + 12, bottom("Barber") + 12, 12); mult(d, "1", wx + 12, y3 - 12, 12)
+    # an order is made of order items
+    link(d, COMP, ids["Order"], ids["OrderItem"], [], (0.5, 1), (0.5, 0))
+    rel(d, "הזמנה מכילה פריטים", X1 + W1 / 2, (bottom("Order") + y4) / 2, "right")
+    mult(d, "1", X1 + W1 / 2 - 12, bottom("Order") + 12, 12); mult(d, "1..*", X1 + W1 / 2 - 18, y4 - 12, 12)
+    # each order item refers to one product; the numbers go below the line, the name above it
+    ly = y4 + 45
+    link(d, line, ids["OrderItem"], ids["Product"], [], (1, 45 / box["OrderItem"][3]), (0, 45 / box["Product"][3]))
+    rel(d, "פריט מתייחס למוצר", (X1 + W1 + PX) / 2, ly, "above")
+    mult(d, "0..*", X1 + W1 + 18, ly + 12, 12); mult(d, "1", PX - 12, ly + 12, 12)
     return d.save()
 
 
