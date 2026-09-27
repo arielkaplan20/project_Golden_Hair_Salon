@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 const User = require("./models/User");
 const ServiceProvider = require("./models/ServiceProvider");
 const Product = require("./models/Product");
+const { defaultWeek } = require("./utils/workSchedule");
 
 async function createUser(data, password) {
   let user = await User.findOne({ email: data.email });
@@ -42,9 +43,7 @@ async function run() {
     if (!exists) {
       await ServiceProvider.create({
         userId: user._id,
-        workDays: [0, 1, 2, 3, 4],     // ראשון עד חמישי
-        startHour: "09:00",
-        endHour: "19:00",
+        weeklySchedule: defaultWeek(),   // ראשון עד חמישי, 09:00-19:00
         slotMinutes: 30
       });
     }

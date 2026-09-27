@@ -2,7 +2,8 @@
 const Appointment = require("../models/Appointment");
 const ServiceProvider = require("../models/ServiceProvider");
 const User = require("../models/User");
-const { todayString, dayOfWeek } = require("../utils/dates");
+const { todayString } = require("../utils/dates");
+const { weeklyOf, hoursForDate } = require("../utils/workSchedule");
 const { sendAppointmentConfirmation } = require("../utils/mailer");
 
 // הופך "09:30" למספר דקות מתחילת היום, וההפך
@@ -30,13 +31,21 @@ function calcFreeSlots(schedule, bookedList) {
   return slots;
 }
 
+// האם השעה היא אחד התורים ביום העבודה של הספר בתאריך הזה.
+// מונע הזמנה ליום שהספר סימן בינתיים כיום חופש או לשעה שכבר מחוץ לשעות העבודה
+async function isWorkingSlot(barberId, date, time) {
+  const barber = await ServiceProvider.findById(barberId);
+  const hours = barber && hoursForDate(barber, date);
+  return Boolean(hours) && calcFreeSlots(hours, []).includes(time);
+}
+
 // רשימת הספרים במספרה - צעד 1 ב-SUC-3
 async function getBarbers(req, res) {
   const barbers = await ServiceProvider.find().populate("userId", "firstName lastName");
   res.json(barbers.map((b) => ({
     id: b._id,
     name: b.userId ? b.userId.firstName + " " + b.userId.lastName : "ספר",
-    workDays: b.workDays
+    workDays: weeklyOf(b).filter((d) => d.active).map((d) => d.day)
   })));
 }
 
@@ -47,15 +56,15 @@ async function getFreeSlots(req, res) {
     const barber = await ServiceProvider.findById(barberId);
     if (!barber) return res.status(404).json({ message: "הספר לא נמצא" });
 
-    // הספר לא עובד ביום הזה
-    const day = dayOfWeek(date);
-    if (!barber.workDays.includes(day)) {
-      return res.json({ slots: [] });
+    // שעות העבודה בתאריך: שינוי לתאריך המסוים אם יש, אחרת היום בסדר השבועי
+    const hours = hoursForDate(barber, date);
+    if (!hours) {
+      return res.json({ slots: [] });   // הספר לא עובד בתאריך הזה
     }
 
     const booked = await Appointment.find({ barberId, date, status: "booked" });
     const bookedTimes = booked.map((a) => a.time);
-    res.json({ slots: calcFreeSlots(barber, bookedTimes) });
+    res.json({ slots: calcFreeSlots(hours, bookedTimes) });
   } catch (err) {
     res.status(500).json({ message: "שגיאה בשרת", error: err.message });
   }
@@ -67,6 +76,9 @@ async function bookAppointment(req, res) {
     const { barberId, date, time } = req.body;
     if (!barberId || !date || !time) {
       return res.status(400).json({ message: "יש לבחור ספר, תאריך ושעה" });
+    }
+    if (!(await isWorkingSlot(barberId, date, time))) {
+      return res.status(400).json({ message: "השעה שנבחרה אינה בשעות העבודה של הספר, יש לבחור שעה אחרת" });
     }
 
     // בדיקה שהשעה עדיין פנויה (שלא נתפסה בינתיים על ידי לקוח אחר)
@@ -116,6 +128,10 @@ async function changeAppointment(req, res) {
     const { date, time } = req.body;
     const appt = await Appointment.findOne({ _id: req.params.id, clientId: req.user.id });
     if (!appt) return res.status(404).json({ message: "התור לא נמצא" });
+    if (!date || !time) return res.status(400).json({ message: "יש לבחור תאריך ושעה" });
+    if (!(await isWorkingSlot(appt.barberId, date, time))) {
+      return res.status(400).json({ message: "השעה שנבחרה אינה בשעות העבודה של הספר, יש לבחור שעה אחרת" });
+    }
 
     const taken = await Appointment.findOne({
       barberId: appt.barberId, date, time, status: "booked", _id: { $ne: appt._id }

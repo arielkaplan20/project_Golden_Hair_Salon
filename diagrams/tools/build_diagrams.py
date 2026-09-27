@@ -260,9 +260,11 @@ def pdom_classes():
     c["Appointment"] = class_box(d, "Appointment", ["- client: Client", "- barber: Barber", "- date: Date", "- time: String",
                                                     "- haircutType: String", "- status: String"],
                                  ["+ reschedule()", "+ cancel()"], 290, y3)
-    c["WorkSchedule"] = class_box(d, "WorkSchedule", ["- workDays: Array&lt;String&gt;", "- startHour: String",
-                                                      "- endHour: String", "- slotMinutes: Number"],
-                                  ["+ getFreeSlots(date)", "+ update()"], 560, y3)
+    c["WorkSchedule"] = class_box(d, "WorkSchedule", ["- weeklySchedule: Array&lt;DaySchedule&gt;",
+                                                      "- exceptions: Array&lt;DateException&gt;",
+                                                      "- slotMinutes: Number"],
+                                  ["+ getHoursForDate(date)", "+ getFreeSlots(date)", "+ updateWeekly()",
+                                   "+ setException(date)", "+ removeException(date)"], 560, y3, w=230)
     y4 = max(c[k][1][1] + c[k][1][3] for k in ("Order", "Appointment", "WorkSchedule")) + 70
     c["OrderItem"] = class_box(d, "OrderItem", ["- product: Product", "- quantity: Number"], ["+ getPrice()"], 20, y4)
     c["Product"] = class_box(d, "Product", ["- name: String", "- description: String", "- price: Number",
@@ -278,7 +280,7 @@ def pdom_classes():
     mult(d, "1", 403, cb[1] + cb[3] + 12); mult(d, "0..*", 408, y3 - 12)
     link(d, ASSOC, ids["Barber"], ids["Appointment"], [(610, gap), (450, gap)], (0.25, 1), (0.8, 0), "מבצע")
     mult(d, "1", 622, bb[1] + bb[3] + 12); mult(d, "0..*", 470, y3 - 12)
-    link(d, COMP, ids["Barber"], ids["WorkSchedule"], [], (0.75, 1), (0.75, 0), "מגדיר")
+    link(d, COMP, ids["Barber"], ids["WorkSchedule"], [], (0.75, 1), (150 / 230, 0), "מגדיר")   # straight down from Barber
     mult(d, "1", 722, bb[1] + bb[3] + 12); mult(d, "1", 722, y3 - 12)
     link(d, ASSOC, ids["Client"], ids["Order"], [(330, gap), (120, gap)], (0.2, 1), (0.5, 0), "מבצע הזמנה")
     mult(d, "1", 342, cb[1] + cb[3] + 12); mult(d, "0..*", 138, y3 - 12)
@@ -506,18 +508,24 @@ SEQS = {
         ("else", "יש תורים"),
         ("r", "sm", "barber", "הצגת פירוט התורים ביומן"),
         ("end",),
-        ("m", "barber", "sm", "בחירה בעריכת ימי ושעות עבודה"),
         ("frame", "break", "ללא עריכה"),
         ("r", "sm", "barber", "סיום התהליך ללא שינוי בשעות העבודה"),
         ("end",),
-        ("m", "barber", "sm", "עדכון ימי ושעות העבודה ולחיצה על שמירה"),
+        ("m", "barber", "sm", "בחירה בעריכת ימי ושעות עבודה"),
+        ("m", "sm", "spdb", "שליפת סדר העבודה השבועי והשינויים לתאריכים"),
+        ("r", "spdb", "sm", "סדר עבודה ושינויים"),
+        ("r", "sm", "barber", "הצגת סדר העבודה והשינויים"),
+        ("m", "barber", "sm", "עדכון סדר העבודה / שינוי לתאריך ושמירה"),
         ("s", "sm", "בדיקת תקינות השעות"),
-        ("frame", "alt", "שעות לא תקינות"),
-        ("r", "sm", "barber", "הודעת שגיאה - חזרה לעדכון השעות"),
-        ("else", "שעות תקינות"),
-        ("m", "sm", "spdb", "עדכון שעות וימי העבודה"),
+        ("m", "sm", "adb", "שליפת התורים העתידיים של הספר"),
+        ("r", "adb", "sm", "רשימת התורים"),
+        ("s", "sm", "בדיקת התנגשות עם תורים שנקבעו"),
+        ("frame", "alt", "שעות לא תקינות / יש תורים מחוץ לשעות החדשות"),
+        ("r", "sm", "barber", "הודעת שגיאה ורשימת התורים המתנגשים"),
+        ("else", "תקין"),
+        ("m", "sm", "spdb", "שמירת סדר העבודה / השינוי לתאריך"),
         ("r", "spdb", "sm", "אישור עדכון"),
-        ("r", "sm", "barber", "הודעת אישור על עדכון שעות העבודה"),
+        ("r", "sm", "barber", "הודעת אישור על השמירה"),
         ("end",)]),
     "SEQ-SUC-10": ([A, UM, UDB], [
         ("m", "admin", "um", "לחיצה על ניהול משתמשים"),
