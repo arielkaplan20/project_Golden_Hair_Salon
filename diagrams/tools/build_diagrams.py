@@ -72,7 +72,7 @@ class Diagram:
 
 
 # ---------------------------------------------------------------- sequence diagrams
-def sequence(name, parts, steps, spacing=None):
+def sequence(name, parts, steps, spacing=None, font=None, left=150):
     """parts: [(key, label, 'actor'|'box')]
     steps: list of
       ('m', from, to, text)      call        ('r', from, to, text) return (dashed)
@@ -80,10 +80,12 @@ def sequence(name, parts, steps, spacing=None):
       ('frame', kind, guard)     open a combined fragment (alt / opt / break / loop)
       ('else', guard)            separator inside the open alt
       ('end',)                   close the fragment
-    Message numbering is automatic: <prefix>.<k>."""
+    Message numbering is automatic: <prefix>.<k>.
+    font: text size of the messages (default 11); left: x of the first lifeline."""
     d = Diagram(name)
     spacing = spacing or (250 if len(parts) <= 3 else 215)
-    xs = {k: 150 + i * spacing for i, (k, _, _) in enumerate(parts)}
+    xs = {k: left + i * spacing for i, (k, _, _) in enumerate(parts)}
+    fs = f"fontSize={font};" if font else ""
     kinds = {k: kind for k, _, kind in parts}
     top = 20
     for k, label, kind in parts:
@@ -117,13 +119,13 @@ def sequence(name, parts, steps, spacing=None):
         num += 1
         if t == "s":
             x = xs[s[1]]
-            pending.append((label, SELF, (x + 5, y), (x + 5, y + 20), [(x + 40, y), (x + 40, y + 20)]))
+            pending.append((label, SELF + fs, (x + 5, y), (x + 5, y + 20), [(x + 40, y), (x + 40, y + 20)]))
             msgs.append((s[1], y - 6, 32))
             y += 55
         else:
             a, b = xs[s[1]], xs[s[2]]
             off = 5 if b > a else -5
-            pending.append((label, MSG if t == "m" else RET, (a + off, y), (b - off, y), []))
+            pending.append((label, (MSG if t == "m" else RET) + fs, (a + off, y), (b - off, y), []))
             msgs.append((s[2], y - 8, 24))
             y += 45
     bottom = y + 10
@@ -142,10 +144,11 @@ def sequence(name, parts, steps, spacing=None):
         x0 = 15 + depth * 12
         w = right - x0 - depth * 12
         d.vertex(f"<b>{fr['kind']}</b>", FRAME, x0, fr["y0"], w, fr["y1"] - fr["y0"])
-        d.vertex(f"[{fr['guard']}]", TEXT, x0 + 55, fr["y0"], 300, 20)
+        # white behind the guard only, so a lifeline or activation bar never runs through its text
+        d.vertex(f"<span style='background:#ffffff'>[{fr['guard']}]</span>", TEXT, x0 + 55, fr["y0"], 300, 20)
         for ey, g in fr["elses"]:
             d.edge("", ELSE_LINE, sp=(x0, ey), tp=(x0 + w, ey))
-            d.vertex(f"[{g}]", TEXT, x0 + 5, ey + 2, 300, 20)
+            d.vertex(f"<span style='background:#ffffff'>[{g}]</span>", TEXT, x0 + 5, ey + 2, 300, 20)
     for label, style, sp, tp, pts in pending:
         d.edge(label, style, sp=sp, tp=tp, points=pts)
     return d.save()
@@ -370,24 +373,39 @@ def pdom_classes():
 
 # ---------------------------------------------------------------- component class diagrams
 def component_users():
+    # Matches the code: the screens are the React pages (each operation is the function in the page that sends the
+    # request), Users Manager is authController.js + adminController.js, Users DB is the users collection that the
+    # User model reads and writes, and User has the fields of models/User.js.
     d = Diagram("CLS-UsersManager")
-    a = class_box(d, "User Client (GUI)", ["- firstName: String", "- lastName: String", "- email: String",
-                                           "- address: String", "- birthDate: Date", "- password: String",
-                                           "- confirmPassword: String"],
-                  ["+ submitRegister()", "+ submitLogin()", "+ showMessage(text)"], 20, 20, 230)
-    b = class_box(d, "Users Manager", ["- usersDB: UsersDB"],
-                  ["+ UserRegister(details)", "+ UserEntry(email, password)", "+ validateDetails(details)",
-                   "+ updateProfile(userId, details)", "+ updatePermissions(userId, role)"], 20, 330, 230)
-    c = class_box(d, "Users DB", ["- users: Collection&lt;User&gt;"],
-                  ["+ findByEmail(email)", "+ insertUser(user)", "+ updateUser(user)"], 20, 610, 230)
+    W, XU = 190, 340
+    gui = class_box(d, "User Client (GUI)", ["- firstName: String", "- lastName: String", "- email: String",
+                                             "- address: String", "- birthDate: String", "- password: String",
+                                             "- confirmPassword: String", "- error: String"],
+                    ["+ Register.handleSubmit(e)", "+ Login.handleSubmit(e)", "+ saveAuth(token, user)",
+                     "+ Profile.save(e)", "+ ForgotPassword.submit(e)", "+ ResetPassword.submit(e)",
+                     "+ ManageUsers.confirm()"], 0, 0, W, big=True)
+    ym = gui[1][3] + 80
+    um = class_box(d, "Users Manager", [],
+                   ["+ register(req, res)", "+ login(req, res)", "+ me(req, res)", "+ updateProfile(req, res)",
+                    "+ forgotPassword(req, res)", "+ resetPassword(req, res)", "+ getUsers(req, res)",
+                    "+ updateRole(req, res)", "- createToken(user)"], 0, ym, W, big=True)
+    yd = ym + um[1][3] + 80
+    db = class_box(d, "Users DB", ["- users: Collection&lt;User&gt;"],
+                   ["+ findOne(filter)", "+ findById(id)", "+ find()", "+ create(data)"], 0, yd, W, big=True)
     u = class_box(d, "User", ["- firstName: String", "- lastName: String", "- email: String", "- passwordHash: String",
-                              "- address: String", "- birthDate: Date", "- role: String"],
-                  ["+ hashPassword(password)"], 340, 330, 210)
-    link(d, ASSOC, a[0], b[0], [], (0.5, 1), (0.5, 0), "שולח פרטים", "side")
-    link(d, ASSOC, b[0], c[0], [], (0.5, 1), (0.5, 0), "שומר / שולף", "side")
-    link(d, ASSOC, b[0], u[0], [], (1, 45 / b[1][3]), (0, 45 / u[1][3]), "יוצר")
-    link(d, ASSOC, c[0], u[0], [(445, c[1][1] + 50)], (1, 50 / c[1][3]), (0.5, 1), "מכיל")
-    mult(d, "0..*", 470, u[1][1] + u[1][3] + 12)
+                              "- address: String", "- birthDate: Date", "- role: String", "- resetToken: String",
+                              "- resetTokenExpires: Date"], ["+ save()"], XU, ym, 190, big=True)
+    x = W / 2
+    link(d, ASSOC, gui[0], um[0], [], (0.5, 1), (0.5, 0))
+    rel(d, "המסך שולח בקשה לשרת", x, (gui[1][3] + ym) / 2, "right")
+    link(d, ASSOC, um[0], db[0], [], (0.5, 1), (0.5, 0))
+    rel(d, "שומר ושולף משתמשים", x, (ym + um[1][3] + yd) / 2, "right")
+    link(d, ASSOC, um[0], u[0], [], (1, 40 / um[1][3]), (0, 40 / u[1][3]))
+    rel(d, "יוצר ומעדכן משתמשים", (W + XU) / 2, ym + 40, "above")
+    ly, ux = yd + 50, XU + 95
+    link(d, ASSOC, db[0], u[0], [(ux, ly)], (1, 50 / db[1][3]), (0.5, 1))
+    rel(d, "מכיל את כל המשתמשים", (W + ux) / 2, ly, "above")
+    mult(d, "1", W + 12, ly + 12, 12); mult(d, "0..*", ux + 18, ym + u[1][3] + 14, 12)
     return d.save()
 
 
@@ -649,23 +667,30 @@ SEQS = {
 
 # object-level sequence diagrams (method calls between objects)
 OBJ = {
-    "OBJ-UserRegister": ([U, ("gui", ":User Client", "box"), ("um", ":Users Manager", "box"), ("usr", ":User", "box"),
-                          ("udb", ":Users DB", "box")], [
-        ("m", "user", "gui", "submitRegister()"),
-        ("m", "gui", "um", "UserRegister(details)"),
-        ("s", "um", "validateDetails(details)"),
-        ("frame", "alt", "פרטים לא תקינים / סיסמאות לא תואמות"),
-        ("r", "um", "gui", "error(invalidFields)"),
-        ("r", "gui", "user", "showMessage(text) - חזרה להזנת פרטים"),
-        ("else", "פרטים תקינים"),
-        ("m", "um", "udb", "findByEmail(email)"),
-        ("r", "udb", "um", "null"),
-        ("m", "um", "usr", "new User(details)"),
-        ("s", "usr", "hashPassword(password)"),
-        ("m", "um", "udb", "insertUser(user)"),
-        ("r", "udb", "um", "ok"),
-        ("r", "um", "gui", "success"),
-        ("r", "gui", "user", "showMessage(text) + navigateToLogin()"),
+    # as in authController.register: the checks, then the e-mail lookup, then the hashed password and the new user
+    "OBJ-UserRegister": ([U, ("gui", ":User Client (GUI)", "box"), ("um", ":Users Manager", "box"),
+                          ("udb", ":Users DB", "box"), ("usr", ":User", "box")], [
+        ("m", "user", "gui", "Register.handleSubmit(e)"),
+        ("m", "gui", "um", "register(req, res)"),
+        ("s", "um", "בדיקת השדות והסיסמאות"),
+        ("frame", "alt", "שדה חסר / הסיסמאות אינן תואמות"),
+        ("r", "um", "gui", "400 { message }"),
+        ("r", "gui", "user", "setError(message)"),
+        ("else", "הפרטים מלאים והסיסמאות תואמות"),
+        ("m", "um", "udb", "findOne({ email })"),
+        ("r", "udb", "um", "exists"),
+        ("frame", "alt", "הדוא\"ל כבר קיים במערכת"),
+        ("r", "um", "gui", "400 { message }"),
+        ("r", "gui", "user", "setError(message)"),
+        ("else", "דוא\"ל חדש"),
+        ("s", "um", "bcrypt.hash(password, 10)"),
+        ("m", "um", "udb", "create({ ..., passwordHash })"),
+        ("m", "udb", "usr", "new User(data) + save()"),
+        ("r", "udb", "um", "user"),
+        ("r", "um", "gui", "201 { message }"),
+        ("r", "gui", "user", "setSuccess(message)"),
+        ("s", "gui", "navigate(\"/login\")"),
+        ("end",),
         ("end",)]),
     "OBJ-BookAppointment": ([C, ("gui", ":Appointment Client", "box"), ("am", ":Appointments Manager", "box"),
                              ("spdb", ":Service Providers DB", "box"), ("adb", ":Appointments DB", "box"),
@@ -693,11 +718,15 @@ OBJ = {
 }
 
 
+# the diagrams redrawn to match the code get larger text and tighter lifelines
+OBJ_OPTS = {"OBJ-UserRegister": {"spacing": 220, "font": 12, "left": 110}}
+
+
 if __name__ == "__main__":
     import sys
     only = set(sys.argv[1:])
     jobs = [(k, (lambda k=k, v=v: sequence(k, *v))) for k, v in SEQS.items()]
-    jobs += [(k, (lambda k=k, v=v: sequence(k, *v, spacing=260))) for k, v in OBJ.items()]
+    jobs += [(k, (lambda k=k, v=v: sequence(k, *v, **OBJ_OPTS.get(k, {"spacing": 260})))) for k, v in OBJ.items()]
     jobs += [("PDOM-concept", pdom_concept), ("PDOM-classes", pdom_classes),
              ("CLS-UsersManager", component_users), ("CLS-AppointmentsManager", component_appointments),
              ("STATE-Appointment", state_machine)]
