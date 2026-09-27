@@ -72,7 +72,23 @@ class Diagram:
 
 
 # ---------------------------------------------------------------- sequence diagrams
-def sequence(name, parts, steps, spacing=None, font=None, left=150, right_pad=130, label_bg=False):
+def wrap_label(text, font, limit):
+    """Break a message label that is wider than limit (px at this font) into two lines, at a ", " or a "."."""
+    from PIL import ImageFont
+    f = ImageFont.truetype("arial.ttf", font)
+    if "<br>" in text or f.getlength(text) <= limit:
+        return text
+    cuts = [i + 2 for i in range(len(text)) if text.startswith(", ", i)] +            [i + 1 for i in range(len(text)) if text[i] == "." and 0 < i < len(text) - 1 and text[i + 1] != "."]
+    cuts = [c for c in cuts if f.getlength(text[:c].rstrip()) <= limit] or cuts
+    if not cuts:
+        return text
+    c = min(cuts, key=lambda c: max(f.getlength(text[:c]), f.getlength(text[c:])))
+    if len(text[c:]) < 6:      # a lonely "res)" on its own line reads worse than a label a little too long
+        return text
+    return text[:c].rstrip() + "<br>" + text[c:]
+
+
+def sequence(name, parts, steps, spacing=None, font=None, left=150, right_pad=130, label_bg=False, wrap=False):
     """parts: [(key, label, 'actor'|'box')]
     steps: list of
       ('m', from, to, text)      call        ('r', from, to, text) return (dashed)
@@ -92,7 +108,14 @@ def sequence(name, parts, steps, spacing=None, font=None, left=150, right_pad=13
     k_ = max(1, font / 12) if font else 1           # 1 keeps every other diagram exactly as it was
     step, self_step = round(45 * k_), round(55 * k_)
     hw, hh = round(120 * k_), round(40 * k_ ** 0.5)
+    frame_gap = round(30 * k_)
+    if wrap:   # compact: every gap is just the height of the text that has to fit in it
+        hw, hh = min(hw, spacing - 16), round(46 * k_ ** 0.5)
+        line_h = 1.2 * font
+        step, self_step = round(line_h + 24), round(20 + line_h + 14)
     tab_w, tab_h = round(50 * k_), round(20 * k_)
+    if wrap:
+        frame_gap = round(tab_h + line_h)
     frame_style = FRAME.replace("width=50;height=20;", f"width={tab_w};height={tab_h};") + fs
     text_style = TEXT + fs
     kinds = {k: kind for k, _, kind in parts}
@@ -111,12 +134,12 @@ def sequence(name, parts, steps, spacing=None, font=None, left=150, right_pad=13
         if t == "frame":
             y += 20
             stack.append({"kind": s[1], "guard": s[2], "y0": y - 10, "elses": []})
-            y += round(30 * k_)
+            y += frame_gap
             continue
         if t == "else":
             y += 5
             stack[-1]["elses"].append((y, s[1]))
-            y += step
+            y += frame_gap if wrap else step
             continue
         if t == "end":
             fr = stack.pop()
@@ -125,12 +148,17 @@ def sequence(name, parts, steps, spacing=None, font=None, left=150, right_pad=13
             y += 15
             continue
         label = f"{prefix}.{num} {s[-1]}" if prefix.isdigit() else f"{num + 1}: {s[-1]}"
+        if wrap:   # a call between neighbours has to fit between them; a self call may reach a bit past the next one
+            span = spacing * (1.3 if t == "s" else abs(list(xs).index(s[2]) - list(xs).index(s[1])) - 0.05)
+            label = wrap_label(label, font, span)
         num += 1
+        if wrap:   # room for the extra line of a two-line label
+            y += round(label.count("<br>") * line_h * (0.5 if t == "s" else 1))
         if t == "s":
             x = xs[s[1]]
             pending.append((label, SELF + fs, (x + 5, y), (x + 5, y + 20), [(x + 40, y), (x + 40, y + 20)]))
             msgs.append((s[1], y - 6, 32))
-            y += self_step
+            y += self_step + (round(label.count("<br>") * line_h * 0.5 + 10) if wrap and "<br>" in label else 0)
         else:
             a, b = xs[s[1]], xs[s[2]]
             off = 5 if b > a else -5
@@ -775,9 +803,9 @@ OBJ = {
 
 
 # the diagrams redrawn to match the code get larger text and tighter lifelines
-OBJ_OPTS = {"OBJ-UserRegister": {"spacing": 268, "font": 16, "left": 100, "right_pad": 70},
-            "OBJ-BookAppointment-1": {"spacing": 278, "font": 17, "left": 100, "right_pad": 80, "label_bg": True},
-            "OBJ-BookAppointment-2": {"spacing": 278, "font": 17, "left": 100, "right_pad": 80, "label_bg": True}}
+# large text: long labels break into two lines, so the lifelines can be close and the diagram fills the page width
+BIG_SEQ = {"spacing": 235, "font": 22, "left": 90, "right_pad": 60, "label_bg": True, "wrap": True}
+OBJ_OPTS = {"OBJ-UserRegister": BIG_SEQ, "OBJ-BookAppointment-1": BIG_SEQ, "OBJ-BookAppointment-2": BIG_SEQ}
 
 
 if __name__ == "__main__":
