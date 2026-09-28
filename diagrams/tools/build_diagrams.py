@@ -78,6 +78,8 @@ def wrap_label(text, font, limit):
     f = ImageFont.truetype("arial.ttf", font)
     if "<br>" in text or f.getlength(text) <= limit:
         return text
+    if any("֐" <= ch <= "׿" for ch in text):
+        return wrap_hebrew(text, f, limit)
     cuts = [i + 2 for i in range(len(text)) if text.startswith(", ", i)] +            [i + 1 for i in range(len(text)) if text[i] == "." and 0 < i < len(text) - 1 and text[i + 1] != "."]
     cuts = [c for c in cuts if f.getlength(text[:c].rstrip()) <= limit] or cuts
     if not cuts:
@@ -86,6 +88,29 @@ def wrap_label(text, font, limit):
     if len(text[c:]) < 6:      # a lonely "res)" on its own line reads worse than a label a little too long
         return text
     return text[:c].rstrip() + "<br>" + text[c:]
+
+
+NBSP = chr(0xa0)   # no-break space
+
+
+def wrap_hebrew(text, f, limit):
+    """A Hebrew sentence breaks between words (never inside the number "3.10"), into as many lines as it needs,
+    all of about the same width."""
+    words = text.replace(" - ", NBSP + "- ").split(" ")      # a dash stays at the end of its line
+    lines_needed = -(-f.getlength(text) // limit)
+    target = max(f.getlength(text) / lines_needed * 1.08, max(f.getlength(w) for w in words))
+    while True:
+        lines, cur = [], ""
+        for w in words:
+            if cur and f.getlength(cur + " " + w) > target:
+                lines.append(cur)
+                cur = w
+            else:
+                cur = (cur + " " + w).strip()
+        lines.append(cur)
+        if len(lines) <= lines_needed or target >= limit:   # no more lines than the width needs
+            return "<br>".join(lines).replace(NBSP, " ")
+        target += 5
 
 
 def sequence(name, parts, steps, spacing=None, font=None, left=150, right_pad=130, label_bg=False, wrap=False):
@@ -150,6 +175,8 @@ def sequence(name, parts, steps, spacing=None, font=None, left=150, right_pad=13
         label = f"{prefix}.{num} {s[-1]}" if prefix.isdigit() else f"{num + 1}: {s[-1]}"
         if wrap:   # a call between neighbours has to fit between them; a self call may reach a bit past the next one
             span = spacing * (1.3 if t == "s" else abs(list(xs).index(s[2]) - list(xs).index(s[1])) - 0.05)
+            if t == "s" and s[1] != list(xs)[-1] and any("֐" <= ch <= "׿" for ch in label):
+                span = spacing - 60    # a Hebrew self call stops before the next lifeline
             label = wrap_label(label, font, span)
         num += 1
         if wrap:   # room for the extra line of a two-line label
@@ -169,6 +196,8 @@ def sequence(name, parts, steps, spacing=None, font=None, left=150, right_pad=13
     # lifelines and activation bars
     for k, _, kind in parts:
         start = top + 70 if kind == "actor" else top + 5 + hh
+        if kind == "actor" and wrap:   # below the actor's name, which is taller in large text
+            start = top + 50 + round(1.3 * font) + 4
         d.edge("", LIFELINE, sp=(xs[k], start), tp=(xs[k], bottom))
         if kind == "actor":
             d.vertex("", BAR, xs[k] - 5, 100, 10, bottom - 110)
@@ -806,12 +835,14 @@ OBJ = {
 # large text: long labels break into two lines, so the lifelines can be close and the diagram fills the page width
 BIG_SEQ = {"spacing": 235, "font": 22, "left": 90, "right_pad": 60, "label_bg": True, "wrap": True}
 OBJ_OPTS = {"OBJ-UserRegister": BIG_SEQ, "OBJ-BookAppointment-1": BIG_SEQ, "OBJ-BookAppointment-2": BIG_SEQ}
+# chapter 5: the Hebrew messages are long, so the lifelines are a little farther apart
+SEQ_OPTS = {"spacing": 300, "font": 20, "left": 90, "right_pad": 60, "label_bg": True, "wrap": True}
 
 
 if __name__ == "__main__":
     import sys
     only = set(sys.argv[1:])
-    jobs = [(k, (lambda k=k, v=v: sequence(k, *v))) for k, v in SEQS.items()]
+    jobs = [(k, (lambda k=k, v=v: sequence(k, *v, **SEQ_OPTS))) for k, v in SEQS.items()]
     jobs += [(k, (lambda k=k, v=v: sequence(k, *v, **OBJ_OPTS.get(k, {"spacing": 260})))) for k, v in OBJ.items()]
     jobs += [("PDOM-concept", pdom_concept), ("PDOM-classes", pdom_classes),
              ("CLS-UsersManager", component_users), ("CLS-AppointmentsManager", component_appointments),
