@@ -260,6 +260,9 @@ def link(d, style, src, tgt, pts, a, b, label="", place="above"):
 
 
 INHERIT = "endArrow=block;endFill=0;endSize=10;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;"
+# Admin -> Barber: a straight line between two boxes side by side; the orthogonal router would bring the line
+# into Barber from the inside, and draw the triangle inside the box
+INHERIT_STRAIGHT = INHERIT.replace("edgeStyle=orthogonalEdgeStyle;", "")
 ASSOC = "endArrow=open;endFill=0;html=1;rounded=0;labelBackgroundColor=#ffffff;"
 AGGR = "endArrow=none;startArrow=diamondThin;startFill=0;startSize=14;html=1;rounded=0;labelBackgroundColor=#ffffff;"
 COMP = "endArrow=none;startArrow=diamondThin;startFill=1;startSize=14;html=1;rounded=0;labelBackgroundColor=#ffffff;"
@@ -314,7 +317,7 @@ def pdom_concept():
     trunk = 125
     for k in ("Client", "Barber"):
         link(d, INHERIT, ids[k], ids["User"], [(center_x(box[k]), trunk), (260, trunk)], (0.5, 0), (0.5, 1))
-    link(d, INHERIT, ids["Admin"], ids["Barber"], [], (0, 0.5), (1, 0.5))
+    link(d, INHERIT_STRAIGHT, ids["Admin"], ids["Barber"], [], (0, 0.5), (1, 0.5))
     # Client places Orders: straight down
     link(d, ASSOC, ids["Client"], ids["Order"], [], (0.25, 1), (0.25, 0))
     rel(d, "לקוח מבצע הזמנות", 70, 262, "right")
@@ -405,7 +408,7 @@ def pdom_classes():
     for k in ("Client", "Barber"):
         link(d, INHERIT, ids[k], ids["User"], [(center_x(box[k]), trunk), (ux, trunk)], (0.5, 0), (0.5, 1))
     ym = y2 + box["Barber"][3] / 2
-    link(d, INHERIT, ids["Admin"], ids["Barber"], [], (0, (ym - y2) / box["Admin"][3]), (1, 0.5))
+    link(d, INHERIT_STRAIGHT, ids["Admin"], ids["Barber"], [], (0, (ym - y2) / box["Admin"][3]), (1, 0.5))
     # the client places orders: straight down
     ox = X1 + 0.4 * W1
     link(d, line, ids["Client"], ids["Order"], [], (0.4, 1), (0.4, 0))
